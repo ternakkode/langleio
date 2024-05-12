@@ -9,6 +9,7 @@ contract Langle {
 
     struct Auction {
         bytes32 id;
+        string name;
         uint startAt;
         uint endAt;
         uint startingPrice;
@@ -28,6 +29,7 @@ contract Langle {
     
 
     function createAuction(
+        string memory name,
         uint startAt,
         uint endAt,
         uint startingPrice,
@@ -43,6 +45,7 @@ contract Langle {
 
         Auction memory auction = Auction({
             id: id,
+            name: name,
             startAt: startAt,
             endAt: endAt,
             startingPrice: startingPrice,
@@ -61,6 +64,10 @@ contract Langle {
         }
 
         auctions.push(auction);
+    }
+
+    function AllAuctions() public view returns (Auction[] memory) {
+        return auctions;
     }
     
     function placeBid(

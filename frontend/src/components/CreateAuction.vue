@@ -51,7 +51,7 @@ async function onSubmit(values: any) {
 
   const result = await writeContract(config, {
     abi,
-    address: '0x8B524D6937351eC39A7ED7c7543729440DcDEc05',
+    address: '0x915dbA5FF949102242f0ca0011846Cc008FBecf4',
     functionName: 'createAuction',
     args: [
       values.productName,

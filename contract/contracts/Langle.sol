@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
-
 contract Langle {
-
-    enum State { WaitingToStart, Started, Ended, Finalized } 
+    enum State {
+        WaitingToStart,
+        Started,
+        Ended,
+        Finalized
+    }
 
     struct Auction {
         bytes32 id;
@@ -20,13 +22,17 @@ contract Langle {
         State state;
     }
 
-    Auction[] public auctions;
-    mapping(bytes32 => Auction) public waitingToStartAuctions;
-    mapping(bytes32 => Auction) public liveAuctions;
-    mapping(bytes32 => Auction) public endedAuctions;
-    mapping(bytes32 => Auction) public finalizedAuctions;
-    mapping(bytes32 =>  mapping(address => uint256)) public bids;
-    
+    struct Bid {
+        uint amount;
+        address bidder;
+    }
+
+
+    bytes32[] public auctionIDs;
+
+
+    mapping(bytes32 => Auction) public auctions;
+    mapping(bytes32 => Bid) public bids;
 
     function createAuction(
         string memory name,
@@ -36,9 +42,17 @@ contract Langle {
         uint buyNowPrice
     ) public {
         require(endAt > startAt, "End time should be after start time");
-        
-        bytes32 id = keccak256(abi.encodePacked(startAt, endAt, startingPrice, buyNowPrice, msg.sender));
-       
+
+        bytes32 id = keccak256(
+            abi.encodePacked(
+                startAt,
+                endAt,
+                startingPrice,
+                buyNowPrice,
+                msg.sender
+            )
+        );
+
         if (block.timestamp > startAt) {
             startAt = block.timestamp;
         }
@@ -53,38 +67,40 @@ contract Langle {
             owner: payable(msg.sender),
             highestBidder: address(0),
             highestBid: 0,
-            state: State.WaitingToStart
+            state: block.timestamp >= startAt ? State.Started : State.WaitingToStart
         });
-        
-        if (startAt > block.timestamp) {
-            waitingToStartAuctions[id] = auction;
-        } else {
-            auction.state = State.Started;
-            liveAuctions[id] = auction;
+
+        auctions[id] = auction;
+        auctionIDs.push(id);
+    }
+
+    function allAuction() public view returns (Auction[] memory) {
+        Auction[] memory auctionFromMap = new Auction[](auctionIDs.length);
+
+        for (uint256 i = 0; i < auctionIDs.length; i++) {
+            auctionFromMap[i] = auctions[auctionIDs[i]];
         }
 
-        auctions.push(auction);
+        return auctionFromMap;
     }
 
-    function AllAuctions() public view returns (Auction[] memory) {
-        return auctions;
-    }
-    
-    function placeBid(
-        bytes32 auctionId
-    ) public payable {
-        Auction storage auction = liveAuctions[auctionId];
+    function placeBid(bytes32 auctionId) public payable {
+        Auction storage auction = auctions[auctionId];
         require(auction.state == State.Started, "Auction not started yet");
         require(block.timestamp < auction.endAt, "Auction has already ended");
-        require(msg.value > auction.highestBid, "Bid must be higher than current highest bid");
+        require(
+            msg.value > auction.highestBid,
+            "Bid must be higher than current highest bid"
+        );
 
         if (auction.highestBidder != address(0)) {
-            // Refund the previous highest bidder
-            bids[auctionId][auction.highestBidder] += auction.highestBid;
+            (bool success, ) = payable(auction.highestBidder).call{
+                value: auction.highestBid
+            }("bid refund");
+            require(success, "Payment failed.");
         }
 
-        auction.highestBidder = msg.sender;
-        auction.highestBid = msg.value;
-        bids[auctionId][msg.sender] += msg.value;
+        auctions[auctionId].highestBidder = payable(msg.sender);
+        auctions[auctionId].highestBid = msg.value;
     }
 }
